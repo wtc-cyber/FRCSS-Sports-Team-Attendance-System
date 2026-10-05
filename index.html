@@ -537,72 +537,142 @@
       log("✅ 範本已下載");
     }
 
-    async function uploadCSVFile() {
-      const fileInput = document.getElementById('csvFile');
-      const uploadBtn = document.getElementById('uploadBtn');
+async function uploadCSVFile() {
+  const fileInput = document.getElementById('csvFile');
+  const uploadBtn = document.getElementById('uploadBtn');
 
-      if (!fileInput.files || fileInput.files.length === 0) {
-        alert("請先點擊「選擇檔案」選擇 CSV 檔！");
+  if (!fileInput.files || fileInput.files.length === 0) {
+    alert("請先點擊「選擇檔案」選擇 CSV 檔！");
+    return;
+  }
+
+  const file = fileInput.files[0];
+  log(`📄 準備上傳檔案: ${file.name}`);
+
+  uploadBtn.disabled = true;
+  uploadBtn.innerText = "⏳ 正在傳送至 Google...";
+  uploadBtn.classList.add("opacity-50");
+
+  const reader = new FileReader();
+
+  reader.onload = async function(e) {
+    try {
+      const text = e.target.result;
+      const lines = text.split(/\r\n|\n/);
+      const members = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        if (!line) continue;
+
+        const parts = line
+          .split(',')
+          .map(p => p.trim().replace(/^"|"$/g, ''));
+
+        if (parts.length >= 6) {
+          members.push({
+            group: parts[0],
+            className: parts[1],
+            classNo: parts[2],
+            gender: parts[3],
+            house: parts[4],
+            name: parts[5]
+          });
+        }
+      }
+
+      log(`📊 CSV 解析成功：共 ${members.length} 筆資料，傳送中...`);
+
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify({
+          action: 'batchUploadMembers',
+          members: members
+        })
+      });
+
+      // ============================================================
+      // ⚠️ 不直接使用 res.json()
+      // 先讀取 Google 實際回覆內容
+      // ============================================================
+      const responseText = await res.text();
+
+      log(`📡 Google 回應狀態：HTTP ${res.status}`);
+
+      // 顯示回應內容類型
+      log(`📡 Google 回應類型：${res.headers.get('content-type') || '未知'}`);
+
+      // ------------------------------------------------------------
+      // 正常情況：應該收到 JSON
+      // ------------------------------------------------------------
+      let result;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+
+        // ----------------------------------------------------------
+        // Google 回傳唔係 JSON
+        // ----------------------------------------------------------
+        log("❌ Google 回傳內容不是 JSON！");
+        log("❌ 實際回覆前 500 字：");
+        log(responseText.substring(0, 500));
+
+        alert(
+          "❌ Google Apps Script 回傳格式錯誤。\n\n" +
+          "請查看下面「系統狀態 Log」，已顯示 Google 實際回覆內容。"
+        );
+
         return;
       }
 
-      const file = fileInput.files[0];
-      log(`📄 準備上傳檔案: ${file.name}`);
+      // ------------------------------------------------------------
+      // JSON 正常
+      // ------------------------------------------------------------
+      if (result.success) {
 
-      uploadBtn.disabled = true;
-      uploadBtn.innerText = "⏳ 正在傳送至 Google...";
-      uploadBtn.classList.add("opacity-50");
+        log("🎉 匯入成功！更新名單庫...");
 
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        try {
-          const text = e.target.result;
-          const lines = text.split(/\r\n|\n/);
-          const members = [];
+        closeAdminModal();
 
-          for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-            const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
-            if (parts.length >= 6) {
-              members.push({
-                group: parts[0], className: parts[1], classNo: parts[2],
-                gender: parts[3], house: parts[4], name: parts[5]
-              });
-            }
-          }
+        await loadAttendance();
 
-          log(`📊 CSV 解析成功：共 ${members.length} 筆資料，傳送中...`);
+        alert("✅ 上傳成功！學生名單庫已更新。");
 
-          const res = await fetch(GAS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'batchUploadMembers', members })
-          });
+      } else {
 
-          const result = await res.json();
+        log(`❌ Google 處理失敗：${result.message || '未知錯誤'}`);
 
-          if (result.success) {
-            log("🎉 匯入成功！更新名單庫...");
-            closeAdminModal();
-            await loadAttendance();
-            alert("✅ 上傳成功！學生名單庫已更新。");
-          } else {
-            alert("❌ Google 處理失敗: " + result.message);
-          }
+        alert(
+          "❌ Google 處理失敗：\n\n" +
+          (result.message || "未知錯誤")
+        );
+      }
 
-        } catch (err) {
-          log("❌ 傳送失敗: " + err.message);
-          alert("❌ 上傳失敗，請檢查網路或 GAS 部署權限。");
-        } finally {
-          uploadBtn.disabled = false;
-          uploadBtn.innerText = "🚀 開始上傳匯入";
-          uploadBtn.classList.remove("opacity-50");
-        }
-      };
+    } catch (err) {
 
-      reader.readAsText(file, 'UTF-8');
+      log("❌ 傳送失敗: " + err.message);
+
+      alert(
+        "❌ 上傳失敗。\n\n" +
+        err.message +
+        "\n\n請查看系統狀態 Log。"
+      );
+
+    } finally {
+
+      uploadBtn.disabled = false;
+      uploadBtn.innerText = "🚀 開始上傳匯入";
+      uploadBtn.classList.remove("opacity-50");
     }
+  };
+
+  reader.readAsText(file, 'UTF-8');
+}
   </script>
 </body>
 </html>
