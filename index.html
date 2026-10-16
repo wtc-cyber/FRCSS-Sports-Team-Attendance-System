@@ -10,11 +10,15 @@
 
   <div class="max-w-md mx-auto bg-white rounded-2xl shadow-lg p-5 space-y-4 relative">
     
-    <!-- 頁頭與按鈕 -->
+    <!-- 頁頭與日期選擇 -->
     <div class="flex justify-between items-center border-b pb-3">
       <div>
         <h1 class="text-xl font-bold text-slate-800">FRCSS校隊點名系統</h1>
-        <p id="currentDate" class="text-xs text-slate-500 mt-0.5">載入中...</p>
+        <!-- 📅 改為可選日期 input，預設今天 -->
+        <div class="flex items-center gap-1.5 mt-1 text-xs text-slate-600">
+          <label for="attendanceDate" class="font-bold text-slate-700">📅 日期：</label>
+          <input type="date" id="attendanceDate" onchange="onDateChange()" class="border border-slate-300 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+        </div>
       </div>
       <button type="button" onclick="openAdminModal()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 shadow-sm">
         ⚙️ 名單管理
@@ -27,7 +31,7 @@
         <span id="statusIcon">⚠️</span>
         <span id="statusText">請先選擇隊伍 / 組別</span>
       </div>
-      <span id="statusTime" class="text-[11px] font-normal text-slate-500">23:59 前可隨時更新</span>
+      <span id="statusTime" class="text-[11px] font-normal text-slate-500">當日可隨時更新</span>
     </div>
 
     <!-- 點名者身份輸入 (必填) -->
@@ -108,7 +112,7 @@
         <button type="button" onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold px-2">&times;</button>
       </div>
 
-      <!-- 密碼驗證區（提示文字已移除） -->
+      <!-- 密碼驗證區 -->
       <div id="pwdArea" class="space-y-3">
         <input type="password" id="adminPwd" onkeyup="if(event.key==='Enter') checkPwd()" placeholder="請輸入管理密碼" class="w-full p-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         <button type="button" onclick="checkPwd()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs transition">解鎖進入</button>
@@ -133,11 +137,8 @@
   <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwoCp0bHW5wiH9a1cwLxGW-Ypk_ooXUrPCAFI-fbF7xhml4e_H8j37LvX5_ZPXgAKx0kQ/exec";
 
-    // 🔑 管理員密碼設定（改為您想要的密碼即可，例如 "admin888"）
     const ADMIN_PASSWORD = "920206";
-
     let currentData = [];
-    const todayStr = new Date().toISOString().split('T')[0];
 
     function log(msg) {
       const logDiv = document.getElementById('debugLog');
@@ -148,11 +149,29 @@
       }
     }
 
+    // 取得當前選取的日期 (格式：yyyy-MM-dd)
+    function getSelectedDate() {
+      const dateInput = document.getElementById('attendanceDate');
+      if (dateInput && dateInput.value) {
+        return dateInput.value;
+      }
+      return new Date().toISOString().split('T')[0];
+    }
+
     window.onload = function() {
       log("✅ 系統啟動...");
-      document.getElementById('currentDate').innerText = `日期：${todayStr}`;
+      // 預設為「今天」
+      const todayStr = new Date().toISOString().split('T')[0];
+      document.getElementById('attendanceDate').value = todayStr;
       loadAttendance();
     };
+
+    // 當用戶手動修改日期時触發
+    function onDateChange() {
+      const currentDate = getSelectedDate();
+      log(`📅 切換點名日期至：${currentDate}`);
+      loadAttendance();
+    }
 
     function validateUpdatedBy() {
       const updatedBy = document.getElementById('updatedBy').value.trim();
@@ -169,6 +188,7 @@
       const icon = document.getElementById('statusIcon');
       const text = document.getElementById('statusText');
       const btnText = document.getElementById('confirmBtnText');
+      const currentDate = getSelectedDate();
 
       if (!selectedGroup) {
         banner.className = "p-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all bg-amber-50 text-amber-800 border border-amber-200";
@@ -178,7 +198,7 @@
         return;
       }
 
-      const savedStatus = localStorage.getItem(`attendance_submit_${todayStr}_${selectedGroup}`);
+      const savedStatus = localStorage.getItem(`attendance_submit_${currentDate}_${selectedGroup}`);
       const groupMembers = currentData.filter(row => (row[0] || '一般').trim() === selectedGroup);
       const sheetRecord = groupMembers.find(row => row[6] && row[8]);
 
@@ -197,7 +217,7 @@
 
         banner.className = "p-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all bg-emerald-50 text-emerald-800 border border-emerald-300";
         icon.innerText = "✅";
-        text.innerText = `【${selectedGroup}】今日點名已成功提交 (${timeStr})`;
+        text.innerText = `【${selectedGroup}】(${currentDate}) 點名已成功提交 (${timeStr})`;
         btnText.innerText = "🔄 更新點名紀錄 (再次提交)";
 
         if (updatedByStr && !document.getElementById('updatedBy').value) {
@@ -206,7 +226,7 @@
       } else {
         banner.className = "p-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all bg-amber-50 text-amber-800 border border-amber-200";
         icon.innerText = "⚠️";
-        text.innerText = `【${selectedGroup}】今日點名：未完成提交`;
+        text.innerText = `【${selectedGroup}】(${currentDate}) 點名：未完成提交`;
         btnText.innerText = "🚀 確認完成點名 (提交至 Google)";
       }
     }
@@ -214,19 +234,21 @@
     async function loadAttendance() {
       const container = document.getElementById('memberList');
       const loading = document.getElementById('loading');
+      const currentDate = getSelectedDate();
 
       loading.classList.remove('hidden');
       container.innerHTML = '';
-      log("🔄 正在讀取總學生資料...");
+      log(`🔄 正在讀取 [${currentDate}] 的學生與點名資料...`);
 
       try {
-        const response = await fetch(GAS_URL);
+        // 將 date 帶入 URL query parameter
+        const response = await fetch(`${GAS_URL}?date=${currentDate}`);
         const result = await response.json();
         loading.classList.add('hidden');
 
         if (result.success && result.data && result.data.length > 0) {
           currentData = result.data;
-          log(`✅ 成功載入名單庫：共 ${currentData.length} 位學生！`);
+          log(`✅ 成功載入名單：共 ${currentData.length} 位學生！`);
           populateGroupDropdown();
           filterAndRenderList();
         } else {
@@ -380,11 +402,12 @@
 
       const targetMembers = currentData.filter(row => (row[0] || '一般').trim() === selectedGroup);
       if (targetMembers.length === 0) return;
+      const currentDate = getSelectedDate();
 
       if (newStatus === '') {
-        if (!confirm(`⚠️ 確定要重置【${selectedGroup}】（共 ${targetMembers.length} 人）的點名狀態，並同步清空 Google Sheet 上的紀錄嗎？`)) return;
+        if (!confirm(`⚠️ 確定要重置 [${currentDate}] 【${selectedGroup}】（共 ${targetMembers.length} 人）的點名狀態，並同步清空 Google Sheet 紀錄嗎？`)) return;
 
-        log(`⏳ 正在同步清空 Google Sheet 上【${selectedGroup}】的點名紀錄...`);
+        log(`⏳ 正在同步清空 Google Sheet 上 [${currentDate}] 【${selectedGroup}】的點名紀錄...`);
 
         targetMembers.forEach(row => {
           row[6] = '';
@@ -392,7 +415,7 @@
           row[8] = '';
         });
 
-        localStorage.removeItem(`attendance_submit_${todayStr}_${selectedGroup}`);
+        localStorage.removeItem(`attendance_submit_${currentDate}_${selectedGroup}`);
         filterAndRenderList();
 
         const updatedBy = document.getElementById('updatedBy').value.trim();
@@ -407,6 +430,7 @@
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
               action: 'submitAttendance',
+              date: currentDate,
               updatedBy: updatedBy,
               records: recordsToSend
             })
@@ -414,8 +438,8 @@
 
           const result = await res.json();
           if (result.success) {
-            log(`🎉 已成功清空 Google Sheet 上【${selectedGroup}】的點名紀錄！`);
-            alert(`✅ 已成功重置！\n\n【${selectedGroup}】本地狀態及 Google Sheet 上的點名紀錄已同步清空。`);
+            log(`🎉 已成功清空 Google Sheet 上 [${currentDate}] 【${selectedGroup}】的點名紀錄！`);
+            alert(`✅ 已成功重置！\n\n【${selectedGroup}】(${currentDate}) 本地狀態及 Google Sheet 紀錄已同步清空。`);
           } else {
             alert("⚠️ 本地已重置，但 Google Sheet 清空失敗: " + result.message);
           }
@@ -427,11 +451,11 @@
       }
 
       let actionText = newStatus === 'ABS' ? "全不選 (缺席)" : "全選 (出席)";
-      if (!confirm(`確定要將【${selectedGroup}】（共 ${targetMembers.length} 人）全部設為「${actionText}」嗎？`)) return;
+      if (!confirm(`確定要將 [${currentDate}] 【${selectedGroup}】（共 ${targetMembers.length} 人）全部設為「${actionText}」嗎？`)) return;
 
       targetMembers.forEach(row => { row[6] = newStatus; });
       filterAndRenderList();
-      log(`⚡ 已將 ${selectedGroup} 標示為：${actionText}`);
+      log(`⚡ 已將 [${currentDate}] ${selectedGroup} 標示為：${actionText}`);
     }
 
     async function confirmAttendanceSubmission() {
@@ -443,6 +467,8 @@
         alert("⚠️ 請先選擇隊伍 / 組別！");
         return;
       }
+
+      const currentDate = getSelectedDate();
 
       const markedMembers = currentData.filter(row => {
         const g = (row[0] || '一般').trim();
@@ -458,7 +484,7 @@
       const confirmBtn = document.getElementById('confirmBtn');
       confirmBtn.disabled = true;
       confirmBtn.classList.add('opacity-50');
-      log(`⏳ 正在上傳【${selectedGroup}】共 ${markedMembers.length} 筆點名紀錄至 Google Sheet...`);
+      log(`⏳ 正在上傳 [${currentDate}] 【${selectedGroup}】共 ${markedMembers.length} 筆點名紀錄至 Google Sheet...`);
 
       const recordsToSend = markedMembers.map(row => ({
         group: row[0], className: row[1], classNo: row[2],
@@ -471,6 +497,7 @@
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
             action: 'submitAttendance',
+            date: currentDate,
             updatedBy: updatedBy,
             records: recordsToSend
           })
@@ -482,13 +509,13 @@
           const now = new Date();
           const timeStr = now.toLocaleTimeString('zh-HK', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-          localStorage.setItem(`attendance_submit_${todayStr}_${selectedGroup}`, JSON.stringify({
-            date: todayStr, time: timeStr, updatedBy: updatedBy
+          localStorage.setItem(`attendance_submit_${currentDate}_${selectedGroup}`, JSON.stringify({
+            date: currentDate, time: timeStr, updatedBy: updatedBy
           }));
 
           checkGroupSubmissionStatus(selectedGroup);
           log(`🎉 成功寫入 Google Sheet (${result.message})`);
-          alert(`✅ 提交成功！\n\n已成功將【${selectedGroup}】(${markedMembers.length}人) 的點名紀錄寫入 Google Sheet！\n\n點名者：${updatedBy}\n提交時間：${timeStr}`);
+          alert(`✅ 提交成功！\n\n已成功將 [${currentDate}] 【${selectedGroup}】(${markedMembers.length}人) 的點名紀錄寫入 Google Sheet！\n\n點名者：${updatedBy}\n提交時間：${timeStr}`);
         } else {
           alert("❌ Google Sheet 處理失敗: " + result.message);
         }
@@ -503,7 +530,7 @@
 
     function openAdminModal() {
       document.getElementById('adminModal').classList.remove('hidden');
-      document.getElementById('adminPwd').value = ''; // 清空輸入框
+      document.getElementById('adminPwd').value = '';
       setTimeout(() => {
         const pwd = document.getElementById('adminPwd');
         if (pwd) pwd.focus();
@@ -514,7 +541,6 @@
       document.getElementById('adminModal').classList.add('hidden');
     }
 
-    // 🔒 檢查密碼
     function checkPwd() {
       const val = document.getElementById('adminPwd').value;
       if (val === ADMIN_PASSWORD) {
@@ -537,142 +563,88 @@
       log("✅ 範本已下載");
     }
 
-async function uploadCSVFile() {
-  const fileInput = document.getElementById('csvFile');
-  const uploadBtn = document.getElementById('uploadBtn');
+    async function uploadCSVFile() {
+      const fileInput = document.getElementById('csvFile');
+      const uploadBtn = document.getElementById('uploadBtn');
 
-  if (!fileInput.files || fileInput.files.length === 0) {
-    alert("請先點擊「選擇檔案」選擇 CSV 檔！");
-    return;
-  }
-
-  const file = fileInput.files[0];
-  log(`📄 準備上傳檔案: ${file.name}`);
-
-  uploadBtn.disabled = true;
-  uploadBtn.innerText = "⏳ 正在傳送至 Google...";
-  uploadBtn.classList.add("opacity-50");
-
-  const reader = new FileReader();
-
-  reader.onload = async function(e) {
-    try {
-      const text = e.target.result;
-      const lines = text.split(/\r\n|\n/);
-      const members = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-
-        if (!line) continue;
-
-        const parts = line
-          .split(',')
-          .map(p => p.trim().replace(/^"|"$/g, ''));
-
-        if (parts.length >= 6) {
-          members.push({
-            group: parts[0],
-            className: parts[1],
-            classNo: parts[2],
-            gender: parts[3],
-            house: parts[4],
-            name: parts[5]
-          });
-        }
-      }
-
-      log(`📊 CSV 解析成功：共 ${members.length} 筆資料，傳送中...`);
-
-      const res = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify({
-          action: 'batchUploadMembers',
-          members: members
-        })
-      });
-
-      // ============================================================
-      // ⚠️ 不直接使用 res.json()
-      // 先讀取 Google 實際回覆內容
-      // ============================================================
-      const responseText = await res.text();
-
-      log(`📡 Google 回應狀態：HTTP ${res.status}`);
-
-      // 顯示回應內容類型
-      log(`📡 Google 回應類型：${res.headers.get('content-type') || '未知'}`);
-
-      // ------------------------------------------------------------
-      // 正常情況：應該收到 JSON
-      // ------------------------------------------------------------
-      let result;
-
-      try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-
-        // ----------------------------------------------------------
-        // Google 回傳唔係 JSON
-        // ----------------------------------------------------------
-        log("❌ Google 回傳內容不是 JSON！");
-        log("❌ 實際回覆前 500 字：");
-        log(responseText.substring(0, 500));
-
-        alert(
-          "❌ Google Apps Script 回傳格式錯誤。\n\n" +
-          "請查看下面「系統狀態 Log」，已顯示 Google 實際回覆內容。"
-        );
-
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("請先點擊「選擇檔案」選擇 CSV 檔！");
         return;
       }
 
-      // ------------------------------------------------------------
-      // JSON 正常
-      // ------------------------------------------------------------
-      if (result.success) {
+      const file = fileInput.files[0];
+      log(`📄 準備上傳檔案: ${file.name}`);
 
-        log("🎉 匯入成功！更新名單庫...");
+      uploadBtn.disabled = true;
+      uploadBtn.innerText = "⏳ 正在傳送至 Google...";
+      uploadBtn.classList.add("opacity-50");
 
-        closeAdminModal();
+      const reader = new FileReader();
 
-        await loadAttendance();
+      reader.onload = async function(e) {
+        try {
+          const text = e.target.result;
+          const lines = text.split(/\r\n|\n/);
+          const members = [];
 
-        alert("✅ 上傳成功！學生名單庫已更新。");
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
 
-      } else {
+            const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
+            if (parts.length >= 6) {
+              members.push({
+                group: parts[0], className: parts[1], classNo: parts[2],
+                gender: parts[3], house: parts[4], name: parts[5]
+              });
+            }
+          }
 
-        log(`❌ Google 處理失敗：${result.message || '未知錯誤'}`);
+          log(`📊 CSV 解析成功：共 ${members.length} 筆資料，傳送中...`);
 
-        alert(
-          "❌ Google 處理失敗：\n\n" +
-          (result.message || "未知錯誤")
-        );
-      }
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'batchUploadMembers',
+              members: members
+            })
+          });
 
-    } catch (err) {
+          const responseText = await res.text();
+          let result;
 
-      log("❌ 傳送失敗: " + err.message);
+          try {
+            result = JSON.parse(responseText);
+          } catch (parseError) {
+            log("❌ Google 回傳內容不是 JSON！");
+            log(responseText.substring(0, 500));
+            alert("❌ Google Apps Script 回傳格式錯誤。");
+            return;
+          }
 
-      alert(
-        "❌ 上傳失敗。\n\n" +
-        err.message +
-        "\n\n請查看系統狀態 Log。"
-      );
+          if (result.success) {
+            log("🎉 匯入成功！更新名單庫...");
+            closeAdminModal();
+            await loadAttendance();
+            alert("✅ 上傳成功！學生名單庫已更新。");
+          } else {
+            log(`❌ Google 處理失敗：${result.message || '未知錯誤'}`);
+            alert("❌ Google 處理失敗：\n\n" + (result.message || "未知錯誤"));
+          }
 
-    } finally {
+        } catch (err) {
+          log("❌ 傳送失敗: " + err.message);
+          alert("❌ 上傳失敗。\n\n" + err.message);
+        } finally {
+          uploadBtn.disabled = false;
+          uploadBtn.innerText = "🚀 開始上傳匯入";
+          uploadBtn.classList.remove("opacity-50");
+        }
+      };
 
-      uploadBtn.disabled = false;
-      uploadBtn.innerText = "🚀 開始上傳匯入";
-      uploadBtn.classList.remove("opacity-50");
+      reader.readAsText(file, 'UTF-8');
     }
-  };
-
-  reader.readAsText(file, 'UTF-8');
-}
   </script>
 </body>
 </html>
