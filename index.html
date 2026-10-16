@@ -23,6 +23,10 @@
       <button type="button" onclick="openAdminModal()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 shadow-sm">
         ⚙️ 名單管理
       </button>
+<!-- 📊 歷史紀錄按鈕 -->
+<button type="button" onclick="openHistoryModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 shadow-sm transition">
+  📊 歷史紀錄
+</button>
     </div>
 
     <!-- 📌 隊伍獨立點名提交狀態指示列 -->
@@ -236,7 +240,7 @@ function checkPwd() {
         banner.className = "p-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all bg-amber-50 text-amber-800 border border-amber-200";
         icon.innerText = "⚠️";
         text.innerText = `【${selectedGroup}】(${currentDate}) 點名：未完成提交`;
-        btnText.innerText = "🚀 確認完成點名 (提交至 Google)";
+        btnText.innerText = "🚀 確認完成點名 ";
       }
     }
 
@@ -305,7 +309,7 @@ function checkPwd() {
       }
     }
 
-    function filterAndRenderList() {
+function filterAndRenderList() {
       const container = document.getElementById('memberList');
       const keyword = (document.getElementById('searchInput').value || '').trim().toLowerCase();
       const selectedGroup = document.getElementById('groupFilter') ? document.getElementById('groupFilter').value : '';
@@ -331,6 +335,13 @@ function checkPwd() {
         return g === selectedGroup;
       });
 
+      // 💡 1. 預設每位學生為 ABS (缺席)，徹底取消未點名狀態
+      groupMembers.forEach(row => {
+        if (!row[6]) {
+          row[6] = 'ABS';
+        }
+      });
+
       let presentCount = 0;
       let totalCount = groupMembers.length;
 
@@ -351,26 +362,24 @@ function checkPwd() {
         return;
       }
 
+      // 💡 2. 渲染學生卡片 (只剩「Present 出席」與「ABS 缺席」兩種狀態)
       filtered.forEach((row) => {
         const [group, className, classNo, gender, house, name, status] = row;
         const isPresent = status === 'Present';
-        const isABS = status === 'ABS';
         const origIdx = currentData.findIndex(r => r[0]===group && r[1]===className && r[2]===classNo && r[5]===name);
 
         const card = document.createElement('div');
         card.className = `w-full p-3 rounded-xl border flex justify-between items-center transition-all cursor-pointer select-none active:scale-[0.98] ${
           isPresent 
             ? 'bg-emerald-500 border-emerald-600 text-white shadow-md' 
-            : isABS
-            ? 'bg-rose-50 border-rose-200 text-rose-800'
-            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+            : 'bg-rose-50 border-rose-200 text-rose-800'
         }`;
 
         card.innerHTML = `
           <div class="space-y-0.5">
             <div class="flex items-center gap-1.5 text-[11px]">
-              <span class="${isPresent ? 'bg-emerald-700 text-white' : 'bg-blue-100 text-blue-800'} font-bold px-1.5 py-0.5 rounded">${group || '一般'}</span>
-              <span class="${isPresent ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'} px-1.5 py-0.5 rounded font-medium">${className||''} ${classNo ? classNo + '號' : ''}</span>
+              <span class="${isPresent ? 'bg-emerald-700 text-white' : 'bg-rose-200 text-rose-800'} font-bold px-1.5 py-0.5 rounded">${group || '一般'}</span>
+              <span class="${isPresent ? 'bg-emerald-600 text-white' : 'bg-rose-100 text-rose-700'} px-1.5 py-0.5 rounded font-medium">${className||''} ${classNo ? classNo + '號' : ''}</span>
               ${house ? `<span class="${isPresent ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-800'} px-1.5 py-0.5 rounded font-medium">${house}社</span>` : ''}
             </div>
             <div class="text-base font-bold pt-0.5">${name}</div>
@@ -378,11 +387,9 @@ function checkPwd() {
           <div class="text-xs font-bold px-3 py-1.5 rounded-full ${
             isPresent 
               ? 'bg-emerald-800 text-white' 
-              : isABS 
-              ? 'bg-rose-600 text-white' 
-              : 'bg-slate-200 text-slate-600'
+              : 'bg-rose-600 text-white'
           }">
-            ${isPresent ? '✓ 出席' : isABS ? '✗ 缺席' : '未點名'}
+            ${isPresent ? '✓ 出席' : '✗ 缺席'}
           </div>
         `;
 
@@ -661,5 +668,201 @@ async function uploadCSVFile() {
   reader.readAsText(file, 'UTF-8');
 }
   </script>
+<!-- 📊 歷史紀錄 Modal (彈出視窗) -->
+<div id="historyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    
+    <!-- 1. Modal 標題 -->
+    <div class="px-6 py-4 bg-slate-800 text-white flex justify-between items-center">
+      <h3 class="text-lg font-bold flex items-center gap-2">📊 出席歷史與統計查詢</h3>
+      <button type="button" onclick="closeHistoryModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
+    </div>
+
+    <!-- 2. 篩選控制列 -->
+    <div class="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">組別/隊伍</label>
+        <select id="histGroup" onchange="fetchHistory()" class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white">
+          <option value="">全部組別</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">搜尋學生 / 班別</label>
+        <input type="text" id="histSearch" oninput="fetchHistory()" placeholder="輸入姓名或班別..." class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white">
+      </div>
+      <div class="flex items-end">
+        <button type="button" onclick="fetchHistory()" class="w-full bg-slate-700 text-white rounded-lg p-2 text-sm font-medium hover:bg-slate-800 transition">
+          🔄 重新整理
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. 統計數據卡片 -->
+    <div class="p-4 bg-white grid grid-cols-4 gap-3 text-center border-b border-slate-100">
+      <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+        <div class="text-xs text-slate-500">總點名人次</div>
+        <div id="statTotal" class="text-lg font-bold text-slate-700">0</div>
+      </div>
+      <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
+        <div class="text-xs text-emerald-600">出席率</div>
+        <div id="statRate" class="text-lg font-bold text-emerald-700">0%</div>
+      </div>
+      <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-100">
+        <div class="text-xs text-amber-600">遲到</div>
+        <div id="statLate" class="text-lg font-bold text-amber-700">0</div>
+      </div>
+      <div class="bg-rose-50 p-2.5 rounded-xl border border-rose-100">
+        <div class="text-xs text-rose-600">缺席</div>
+        <div id="statAbsent" class="text-lg font-bold text-rose-700">0</div>
+      </div>
+    </div>
+
+    <!-- 4. 歷史明細列表 -->
+    <div class="p-4 overflow-y-auto flex-1">
+      <div id="histLoading" class="text-center py-8 text-slate-400 hidden">⏳ 載入歷史紀錄中...</div>
+      <div id="histList" class="space-y-2"></div>
+    </div>
+
+  </div>
+</div>
+<script>
+// ============================================================
+// 📊 歷史紀錄與出席率 Modal 控制邏輯 (智能隊伍選單修正版)
+// ============================================================
+let histTimer = null;
+
+// 打開 Modal
+async function openHistoryModal() {
+  document.getElementById('historyModal').classList.remove('hidden');
+  
+  // 💡 1. 嘗試搜尋主畫面常見的 Group 下拉選單 ID
+  const possibleIds = ['groupSelect', 'groupFilter', 'group', 'selectGroup', 'teamSelect', 'filterGroup'];
+  let groupSelect = null;
+  for (const id of possibleIds) {
+    const el = document.getElementById(id);
+    if (el && el.tagName === 'SELECT') {
+      groupSelect = el;
+      break;
+    }
+  }
+
+  const histGroup = document.getElementById('histGroup');
+  if (histGroup) {
+    histGroup.innerHTML = '<option value="">全部組別</option>';
+    if (groupSelect && groupSelect.options.length > 0) {
+      Array.from(groupSelect.options).forEach(opt => {
+        if (opt.value) {
+          histGroup.innerHTML += `<option value="${opt.value}">${opt.text}</option>`;
+        }
+      });
+    }
+  }
+  
+  await fetchHistory(true); // 帶入 isFirstLoad 標籤
+}
+
+// 關閉 Modal
+function closeHistoryModal() {
+  document.getElementById('historyModal').classList.add('hidden');
+}
+
+// 向 GAS 抓取歷史資料
+function fetchHistory(isFirstLoad = false) {
+  clearTimeout(histTimer);
+  histTimer = setTimeout(async () => {
+    const histGroup = document.getElementById('histGroup');
+    const group = histGroup ? histGroup.value : '';
+    const name = document.getElementById('histSearch').value.trim();
+    const loading = document.getElementById('histLoading');
+    const container = document.getElementById('histList');
+
+    if (!loading || !container) return;
+
+    loading.classList.remove('hidden');
+    container.innerHTML = '';
+
+    try {
+      const targetUrl = typeof GAS_URL !== 'undefined' ? GAS_URL : (typeof scriptUrl !== 'undefined' ? scriptUrl : '');
+      
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'getAttendanceHistory',
+          group: group,
+          name: name
+        })
+      });
+
+      const textData = await res.text();
+      const data = JSON.parse(textData);
+
+if (data.success) {
+        const stats = data.stats || {};
+        
+        // 1. 更新 3 個統計卡片數字 (總點名人次、出席率、缺席)
+        const elTotal = document.getElementById('statTotal');
+        const elRate = document.getElementById('statRate');
+        const elAbsent = document.getElementById('statAbsent');
+
+        if (elTotal) elTotal.innerText = stats.total || 0;
+        if (elRate) elRate.innerText = (stats.rate !== undefined ? stats.rate : 0) + '%';
+        if (elAbsent) elAbsent.innerText = stats.absent || 0;
+
+        // 2. 自動提取隊伍名稱選單 (保險機制)
+        if (isFirstLoad && histGroup && histGroup.options.length <= 1 && data.logs) {
+          const uniqueGroups = [...new Set(data.logs.map(log => log.group).filter(Boolean))];
+          uniqueGroups.forEach(grpName => {
+            const opt = document.createElement('option');
+            opt.value = grpName;
+            opt.textContent = grpName;
+            histGroup.appendChild(opt);
+          });
+        }
+
+        // 3. 渲染列表內容 (已移除遲到，精準顯示 Present / 缺席)
+        if (!data.logs || data.logs.length === 0) {
+          container.innerHTML = '<div class="text-center text-slate-400 py-6">查無相關點名紀錄</div>';
+        } else {
+          container.innerHTML = data.logs.map(log => {
+            const sLower = (log.status || '').toLowerCase().trim();
+            
+            // 預設灰色未定標籤
+            let statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-medium">${log.status || '未知'}</span>`;
+            
+            // 只有精準符合 "present" 或 "出席" 先出綠色 Present 標籤
+            if (sLower === 'present' || sLower === '出席') {
+              statusBadge = '<span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800 font-medium">Present</span>';
+            } else if (sLower === 'absent' || sLower === '缺席' || sLower.includes('缺')) {
+              statusBadge = '<span class="px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-800 font-medium">缺席</span>';
+            }
+
+            return `
+              <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm">
+                <div class="flex items-center gap-3">
+                  <div class="text-xs text-slate-400 font-mono w-24">${log.date}</div>
+                  <div>
+                    <span class="font-bold text-slate-700">${log.name}</span>
+                    <span class="text-xs text-slate-400 ml-1">(${log.className} ${log.classNo})</span>
+                    <span class="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded ml-2">${log.group}</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400">點名者: ${log.updatedBy}</span>
+                  ${statusBadge}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    } catch (err) {
+      container.innerHTML = `<div class="text-center text-rose-500 py-4">載入歷史紀錄失敗：${err.message}</div>`;
+    } finally {
+      loading.classList.add('hidden');
+    }
+  }, 300);
+}
+</script>
 </body>
 </html>
