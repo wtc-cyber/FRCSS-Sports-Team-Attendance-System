@@ -550,16 +550,17 @@ function checkPwd() {
       document.getElementById('adminModal').classList.add('hidden');
     }
 
-    function checkPwd() {
-      const val = document.getElementById('adminPwd').value;
-      if (val === ADMIN_PASSWORD) {
-        document.getElementById('pwdArea').classList.add('hidden');
-        document.getElementById('adminTools').classList.remove('hidden');
-        log("✅ 後台解鎖成功");
-      } else {
-        alert("密碼錯誤！請重新輸入。");
-      }
-    }
+// 🔒 檢查密碼 (只檢查有無輸入，比對留比後端 Google Apps Script 做)
+function checkPwd() {
+  const val = document.getElementById('adminPwd').value.trim();
+  if (val) {
+    document.getElementById('pwdArea').classList.add('hidden');
+    document.getElementById('adminTools').classList.remove('hidden');
+    log("✅ 已輸入密碼，開啟管理工具");
+  } else {
+    alert("請輸入管理密碼！");
+  }
+}
 
     function downloadCSVTemplate() {
       const csvContent = "\uFEFFGroup,班別,班號,性別,社,姓名\n田徑隊,2A,7,M,信,陳大文\n籃球隊,3B,12,F,望,李小花\n羽毛球隊,1C,3,M,愛,張小明";
