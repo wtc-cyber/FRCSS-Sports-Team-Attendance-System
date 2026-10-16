@@ -137,7 +137,17 @@
   <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwoCp0bHW5wiH9a1cwLxGW-Ypk_ooXUrPCAFI-fbF7xhml4e_H8j37LvX5_ZPXgAKx0kQ/exec";
 
-    const ADMIN_PASSWORD = "920206";
+   // 🔒 解鎖畫面：只要有填密碼就先開啟選單，真實驗證留比後端做
+function checkPwd() {
+  const val = document.getElementById('adminPwd').value.trim();
+  if (val) {
+    document.getElementById('pwdArea').classList.add('hidden');
+    document.getElementById('adminTools').classList.remove('hidden');
+    log("✅ 已輸入密碼，開啟管理工具");
+  } else {
+    alert("請輸入管理密碼！");
+  }
+}
     let currentData = [];
 
     function log(msg) {
@@ -563,88 +573,93 @@
       log("✅ 範本已下載");
     }
 
-    async function uploadCSVFile() {
-      const fileInput = document.getElementById('csvFile');
-      const uploadBtn = document.getElementById('uploadBtn');
+async function uploadCSVFile() {
+  const fileInput = document.getElementById('csvFile');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const adminPwd = document.getElementById('adminPwd').value.trim();
 
-      if (!fileInput.files || fileInput.files.length === 0) {
-        alert("請先點擊「選擇檔案」選擇 CSV 檔！");
+  if (!adminPwd) {
+    alert("⚠️ 請先輸入管理密碼！");
+    return;
+  }
+
+  if (!fileInput.files || fileInput.files.length === 0) {
+    alert("請先點擊「選擇檔案」選擇 CSV 檔！");
+    return;
+  }
+
+  const file = fileInput.files[0];
+  log(`📄 準備上傳檔案: ${file.name}`);
+
+  uploadBtn.disabled = true;
+  uploadBtn.innerText = "⏳ 正在傳送至 Google...";
+  uploadBtn.classList.add("opacity-50");
+
+  const reader = new FileReader();
+
+  reader.onload = async function(e) {
+    try {
+      const text = e.target.result;
+      const lines = text.split(/\r\n|\n/);
+      const members = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
+        if (parts.length >= 6) {
+          members.push({
+            group: parts[0], className: parts[1], classNo: parts[2],
+            gender: parts[3], house: parts[4], name: parts[5]
+          });
+        }
+      }
+
+      log(`📊 CSV 解析成功：共 ${members.length} 筆資料，傳送中...`);
+
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'batchUploadMembers',
+          password: adminPwd, // 🔑 將密碼傳送給 Google Apps Script 驗證
+          members: members
+        })
+      });
+
+      const responseText = await res.text();
+      let result;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        log("❌ Google 回傳格式錯誤！");
         return;
       }
 
-      const file = fileInput.files[0];
-      log(`📄 準備上傳檔案: ${file.name}`);
+      if (result.success) {
+        log("🎉 匯入成功！更新名單庫...");
+        closeAdminModal();
+        await loadAttendance();
+        alert("✅ 上傳成功！學生名單庫已更新。");
+      } else {
+        log(`❌ 處理失敗：${result.message || '未知錯誤'}`);
+        alert("❌ 上傳失敗：\n\n" + (result.message || "未知錯誤"));
+      }
 
-      uploadBtn.disabled = true;
-      uploadBtn.innerText = "⏳ 正在傳送至 Google...";
-      uploadBtn.classList.add("opacity-50");
-
-      const reader = new FileReader();
-
-      reader.onload = async function(e) {
-        try {
-          const text = e.target.result;
-          const lines = text.split(/\r\n|\n/);
-          const members = [];
-
-          for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-
-            const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
-            if (parts.length >= 6) {
-              members.push({
-                group: parts[0], className: parts[1], classNo: parts[2],
-                gender: parts[3], house: parts[4], name: parts[5]
-              });
-            }
-          }
-
-          log(`📊 CSV 解析成功：共 ${members.length} 筆資料，傳送中...`);
-
-          const res = await fetch(GAS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'batchUploadMembers',
-              members: members
-            })
-          });
-
-          const responseText = await res.text();
-          let result;
-
-          try {
-            result = JSON.parse(responseText);
-          } catch (parseError) {
-            log("❌ Google 回傳內容不是 JSON！");
-            log(responseText.substring(0, 500));
-            alert("❌ Google Apps Script 回傳格式錯誤。");
-            return;
-          }
-
-          if (result.success) {
-            log("🎉 匯入成功！更新名單庫...");
-            closeAdminModal();
-            await loadAttendance();
-            alert("✅ 上傳成功！學生名單庫已更新。");
-          } else {
-            log(`❌ Google 處理失敗：${result.message || '未知錯誤'}`);
-            alert("❌ Google 處理失敗：\n\n" + (result.message || "未知錯誤"));
-          }
-
-        } catch (err) {
-          log("❌ 傳送失敗: " + err.message);
-          alert("❌ 上傳失敗。\n\n" + err.message);
-        } finally {
-          uploadBtn.disabled = false;
-          uploadBtn.innerText = "🚀 開始上傳匯入";
-          uploadBtn.classList.remove("opacity-50");
-        }
-      };
-
-      reader.readAsText(file, 'UTF-8');
+    } catch (err) {
+      log("❌ 傳送失敗: " + err.message);
+      alert("❌ 上傳失敗：\n\n" + err.message);
+    } finally {
+      uploadBtn.disabled = false;
+      uploadBtn.innerText = "🚀 開始上傳匯入";
+      uploadBtn.classList.remove("opacity-50");
     }
+  };
+
+  reader.readAsText(file, 'UTF-8');
+}
   </script>
 </body>
 </html>
