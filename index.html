@@ -46,9 +46,16 @@
     <!-- 🎯 隊伍 / 組別選擇選單 -->
     <div>
       <label class="block text-xs font-semibold text-slate-600 mb-1">🎯 選擇隊伍 / 組別 <span class="text-red-500">*</span></label>
-      <select id="groupFilter" onchange="filterAndRenderList()" class="w-full p-2.5 border border-slate-300 bg-slate-50 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+      <select id="groupFilter" onchange="onGroupChange()" class="w-full p-2.5 border border-slate-300 bg-slate-50 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
         <option value="">-- 👈 請先選擇隊伍 / 組別 --</option>
       </select>
+    </div>
+
+    <!-- 📝 當日備註（選填） -->
+    <div class="bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+      <label for="dailyNote" class="block text-xs font-bold text-amber-900 mb-1">📝 當日備註（選填）</label>
+      <textarea id="dailyNote" oninput="saveNoteInput()" rows="2" placeholder="例如：名單以外學生出席練習 / 場地變更 / 傷病狀況..." class="w-full p-2.5 border border-amber-300 rounded-xl bg-white text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none resize-none"></textarea>
+      <p class="text-[10px] text-amber-700/80 mt-1">💡 會與本隊伍當日點名紀錄一併儲存。</p>
     </div>
 
     <!-- 🔍 搜尋列 -->
@@ -167,7 +174,7 @@
         </div>
       </div>
 
-      <!-- 3. 統計數據卡片 (已移除遲到) -->
+      <!-- 3. 統計數據卡片 -->
       <div class="p-4 bg-white grid grid-cols-3 gap-3 text-center border-b border-slate-100">
         <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
           <div class="text-xs text-slate-500">總點名人次</div>
@@ -196,6 +203,7 @@
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwoCp0bHW5wiH9a1cwLxGW-Ypk_ooXUrPCAFI-fbF7xhml4e_H8j37LvX5_ZPXgAKx0kQ/exec";
 
     let currentData = [];
+    let serverNotes = {}; // { group: note } 由 GAS 回傳的當日備註
 
     function log(msg) {
       const logDiv = document.getElementById('debugLog');
@@ -206,7 +214,13 @@
       }
     }
 
-    // 1. 取得當前選取的日期 (使用本地時間，避免 UTC 時區導致日期錯誤)
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    // 1. 取得當前選取的日期
     function getSelectedDate() {
       const dateInput = document.getElementById('attendanceDate');
       if (dateInput && dateInput.value) {
@@ -236,6 +250,11 @@
       loadAttendance();
     }
 
+    // 隊伍切換時：先保存舊備註（輸入時已即時保存），再重新渲染
+    function onGroupChange() {
+      filterAndRenderList();
+    }
+
     function validateUpdatedBy() {
       const updatedByEl = document.getElementById('updatedBy');
       const updatedBy = updatedByEl ? updatedByEl.value.trim() : '';
@@ -245,6 +264,39 @@
         return null;
       }
       return updatedBy;
+    }
+
+    // ============================================================
+    // 📝 備註欄：localStorage + 伺服器同步
+    // ============================================================
+    function getNoteKey(date, group) {
+      return `attendance_note_${date}_${group}`;
+    }
+
+    function saveNoteInput() {
+      const el = document.getElementById('dailyNote');
+      if (!el) return;
+      const group = document.getElementById('groupFilter').value;
+      if (!group) return;
+      localStorage.setItem(getNoteKey(getSelectedDate(), group), el.value);
+    }
+
+    function loadNoteInput() {
+      const el = document.getElementById('dailyNote');
+      if (!el) return;
+      const group = document.getElementById('groupFilter').value;
+      if (!group) {
+        if (el.value !== '') el.value = '';
+        return;
+      }
+      const key = getNoteKey(getSelectedDate(), group);
+      let note = localStorage.getItem(key);
+      if (note === null) {
+        // 本地沒有 → 用伺服器回傳的當日備註
+        note = (serverNotes && serverNotes[group]) || '';
+        if (note) localStorage.setItem(key, note);
+      }
+      if (el.value !== note) el.value = note;
     }
 
     function checkGroupSubmissionStatus(selectedGroup) {
@@ -312,6 +364,9 @@
         const result = await response.json();
         if (loading) loading.classList.add('hidden');
 
+        // 伺服器回傳的當日備註（即使名單為空也同步）
+        serverNotes = (result && result.notes) || {};
+
         if (result.success && result.data && result.data.length > 0) {
           currentData = result.data;
           log(`✅ 成功載入名單：共 ${currentData.length} 位學生！`);
@@ -377,6 +432,9 @@
       if (!container) return;
       container.innerHTML = '';
 
+      // 📝 同步備註框內容
+      loadNoteInput();
+
       checkGroupSubmissionStatus(selectedGroup);
 
       if (!selectedGroup) {
@@ -397,7 +455,7 @@
         return g === selectedGroup;
       });
 
-      // 💡 預設每位學生為 ABS (缺席)，徹底取消未點名狀態
+      // 💡 預設每位學生為 ABS (缺席)
       groupMembers.forEach(row => {
         if (!row[6]) {
           row[6] = 'ABS';
@@ -484,7 +542,7 @@
       const currentDate = getSelectedDate();
 
       if (newStatus === '') {
-        if (!confirm(`⚠️ 確定要重置 [${currentDate}] 【${selectedGroup}】（共 ${targetMembers.length} 人）的點名狀態，並同步清空 Google Sheet 紀錄嗎？`)) return;
+        if (!confirm(`⚠️ 確定要重置 [${currentDate}] 【${selectedGroup}】（共 ${targetMembers.length} 人）的點名狀態及備註，並同步清空 Google Sheet 紀錄嗎？`)) return;
 
         log(`⏳ 正在同步清空 Google Sheet 上 [${currentDate}] 【${selectedGroup}】的點名紀錄...`);
 
@@ -495,6 +553,11 @@
         });
 
         localStorage.removeItem(`attendance_submit_${currentDate}_${selectedGroup}`);
+        localStorage.removeItem(getNoteKey(currentDate, selectedGroup));
+        delete serverNotes[selectedGroup];
+        const noteEl = document.getElementById('dailyNote');
+        if (noteEl) noteEl.value = '';
+
         filterAndRenderList();
 
         const updatedBy = document.getElementById('updatedBy').value.trim();
@@ -510,15 +573,17 @@
             body: JSON.stringify({
               action: 'submitAttendance',
               date: currentDate,
+              group: selectedGroup,
               updatedBy: updatedBy,
+              note: '',
               records: recordsToSend
             })
           });
 
           const result = await res.json();
           if (result.success) {
-            log(`🎉 已成功清空 Google Sheet 上 [${currentDate}] 【${selectedGroup}】的點名紀錄！`);
-            alert(`✅ 已成功重置！\n\n【${selectedGroup}】(${currentDate}) 本地狀態及 Google Sheet 紀錄已同步清空。`);
+            log(`🎉 已成功清空 Google Sheet 上 [${currentDate}] 【${selectedGroup}】的點名紀錄與備註！`);
+            alert(`✅ 已成功重置！\n\n【${selectedGroup}】(${currentDate}) 本地狀態、備註及 Google Sheet 紀錄已同步清空。`);
           } else {
             alert("⚠️ 本地已重置，但 Google Sheet 清空失敗: " + result.message);
           }
@@ -550,6 +615,9 @@
 
       const currentDate = getSelectedDate();
 
+      const noteEl = document.getElementById('dailyNote');
+      const note = noteEl ? noteEl.value.trim() : '';
+
       const markedMembers = currentData.filter(row => {
         const g = (row[0] || '一般').trim();
         const status = row[6];
@@ -566,7 +634,7 @@
         confirmBtn.disabled = true;
         confirmBtn.classList.add('opacity-50');
       }
-      log(`⏳ 正在上傳 [${currentDate}] 【${selectedGroup}】共 ${markedMembers.length} 筆點名紀錄至 Google Sheet...`);
+      log(`⏳ 正在上傳 [${currentDate}] 【${selectedGroup}】共 ${markedMembers.length} 筆點名紀錄及備註至 Google Sheet...`);
 
       const recordsToSend = markedMembers.map(row => ({
         group: row[0], className: row[1], classNo: row[2],
@@ -580,7 +648,9 @@
           body: JSON.stringify({
             action: 'submitAttendance',
             date: currentDate,
+            group: selectedGroup,
             updatedBy: updatedBy,
+            note: note,
             records: recordsToSend
           })
         });
@@ -594,10 +664,12 @@
           localStorage.setItem(`attendance_submit_${currentDate}_${selectedGroup}`, JSON.stringify({
             date: currentDate, time: timeStr, updatedBy: updatedBy
           }));
+          localStorage.setItem(getNoteKey(currentDate, selectedGroup), note);
+          serverNotes[selectedGroup] = note;
 
           checkGroupSubmissionStatus(selectedGroup);
           log(`🎉 成功寫入 Google Sheet (${result.message})`);
-          alert(`✅ 提交成功！\n\n已成功將 [${currentDate}] 【${selectedGroup}】(${markedMembers.length}人) 的點名紀錄寫入 Google Sheet！\n\n點名者：${updatedBy}\n提交時間：${timeStr}`);
+          alert(`✅ 提交成功！\n\n已成功將 [${currentDate}] 【${selectedGroup}】(${markedMembers.length}人) 的點名紀錄及備註寫入 Google Sheet！\n\n點名者：${updatedBy}\n提交時間：${timeStr}${note ? `\n備註：${note}` : ''}`);
         } else {
           alert("❌ Google Sheet 處理失敗: " + result.message);
         }
@@ -634,7 +706,7 @@
       if (modal) modal.classList.add('hidden');
     }
 
-    // 4. 🔒 密碼驗證 (連線至 GAS 後端即時驗證)
+    // 4. 🔒 密碼驗證
     async function checkPwd() {
       const pwdInput = document.getElementById('adminPwd');
       if (!pwdInput) return;
@@ -677,7 +749,7 @@
       }
     }
 
-    // 5. 📥 CSV 範本（學校格式，內容為虛構資料）
+    // 5. 📥 CSV 範本
     function downloadCSVTemplate() {
       const csvContent = "\uFEFF" + [
         "年度,Category,Group,登入名稱,班別,班號,性別,社,Level,姓名",
@@ -695,7 +767,7 @@
       log("✅ 範本已下載（學校格式）");
     }
 
-    // 6. CSV 解析（支援引號內逗號、BOM、Windows / Mac 換行）
+    // 6. CSV 解析
     function parseCSV(text) {
       text = text.replace(/^\uFEFF/, '');
       const rows = [];
@@ -752,7 +824,6 @@
           const rows = parseCSV(e.target.result);
           if (rows.length < 2) throw new Error("CSV 內容為空或只有標題列");
 
-          // 按標題名稱找欄位位置（兼容學校格式，欄位次序改變都唔怕）
           const header = rows[0].map(h => h.trim().toLowerCase());
           const col = {
             group: header.indexOf('group'),
@@ -771,7 +842,7 @@
           for (let i = 1; i < rows.length; i++) {
             const r = rows[i];
             const name = (r[col.name] || '').trim();
-            if (!name) continue; // 無姓名嘅行略過
+            if (!name) continue;
             members.push({
               group: (r[col.group] || '').trim(),
               className: (r[col.className] || '').trim(),
@@ -830,14 +901,13 @@
     }
 
     // ============================================================
-    // 📊 歷史紀錄與出席率 Modal 控制邏輯
+    // 📊 歷史紀錄與出席率 Modal
     // ============================================================
     let histTimer = null;
 
     async function openHistoryModal() {
       document.getElementById('historyModal').classList.remove('hidden');
 
-      // 沿用主畫面隊伍選單內容
       const groupSelect = document.getElementById('groupFilter');
       const histGroup = document.getElementById('histGroup');
       if (histGroup) {
@@ -888,12 +958,10 @@
           if (data.success) {
             const stats = data.stats || {};
 
-            // 1. 更新統計卡片 (總點名人次、出席率、缺席)
             document.getElementById('statTotal').innerText = stats.total || 0;
             document.getElementById('statRate').innerText = (stats.rate !== undefined ? stats.rate : 0) + '%';
             document.getElementById('statAbsent').innerText = stats.absent || 0;
 
-            // 2. 若隊伍選單為空，由紀錄自動補上
             if (isFirstLoad === true && histGroup && histGroup.options.length <= 1 && data.logs) {
               const uniqueGroups = [...new Set(data.logs.map(l => l.group).filter(Boolean))];
               uniqueGroups.forEach(grpName => {
@@ -904,14 +972,13 @@
               });
             }
 
-            // 3. 渲染列表 (出席 / 缺席)
             if (!data.logs || data.logs.length === 0) {
               container.innerHTML = '<div class="text-center text-slate-400 py-6">查無相關點名紀錄</div>';
             } else {
               container.innerHTML = data.logs.map(item => {
                 const sLower = (item.status || '').toLowerCase().trim();
 
-                let statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-medium">${item.status || '未知'}</span>`;
+                let statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-medium">${escapeHtml(item.status) || '未知'}</span>`;
 
                 if (sLower === 'present' || sLower === '出席') {
                   statusBadge = '<span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800 font-medium">Present</span>';
@@ -919,29 +986,36 @@
                   statusBadge = '<span class="px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-800 font-medium">缺席</span>';
                 }
 
+                const noteBlock = item.note
+                  ? `<div class="mt-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">📝 ${escapeHtml(item.note)}</div>`
+                  : '';
+
                 return `
-                  <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm">
-                    <div class="flex items-center gap-3">
-                      <div class="text-xs text-slate-400 font-mono w-24">${item.date}</div>
-                      <div>
-                        <span class="font-bold text-slate-700">${item.name}</span>
-                        <span class="text-xs text-slate-400 ml-1">(${item.className} ${item.classNo})</span>
-                        <span class="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded ml-2">${item.group}</span>
+                  <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <div class="text-xs text-slate-400 font-mono w-24">${escapeHtml(item.date)}</div>
+                        <div>
+                          <span class="font-bold text-slate-700">${escapeHtml(item.name)}</span>
+                          <span class="text-xs text-slate-400 ml-1">(${escapeHtml(item.className)} ${escapeHtml(item.classNo)})</span>
+                          <span class="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded ml-2">${escapeHtml(item.group)}</span>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-400">點名者: ${escapeHtml(item.updatedBy)}</span>
+                        ${statusBadge}
                       </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                      <span class="text-xs text-slate-400">點名者: ${item.updatedBy}</span>
-                      ${statusBadge}
-                    </div>
+                    ${noteBlock}
                   </div>
                 `;
               }).join('');
             }
           } else {
-            container.innerHTML = `<div class="text-center text-rose-500 py-4">載入失敗：${data.message || '未知錯誤'}</div>`;
+            container.innerHTML = `<div class="text-center text-rose-500 py-4">載入失敗：${escapeHtml(data.message) || '未知錯誤'}</div>`;
           }
         } catch (err) {
-          container.innerHTML = `<div class="text-center text-rose-500 py-4">載入歷史紀錄失敗：${err.message}</div>`;
+          container.innerHTML = `<div class="text-center text-rose-500 py-4">載入歷史紀錄失敗：${escapeHtml(err.message)}</div>`;
         } finally {
           loading.classList.add('hidden');
         }
