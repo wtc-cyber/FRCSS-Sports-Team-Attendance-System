@@ -9,12 +9,11 @@
 <body class="bg-slate-100 min-h-screen p-4 text-slate-800 pb-24">
 
   <div class="max-w-md mx-auto bg-white rounded-2xl shadow-lg p-5 space-y-4 relative">
-    
+
     <!-- 頁頭與日期選擇 -->
     <div class="flex justify-between items-center border-b pb-3">
       <div>
         <h1 class="text-xl font-bold text-slate-800">FRCSS校隊點名系統</h1>
-        <!-- 📅 改為可選日期 input，預設今天 -->
         <div class="flex items-center gap-1.5 mt-1 text-xs text-slate-600">
           <label for="attendanceDate" class="font-bold text-slate-700">📅 日期：</label>
           <input type="date" id="attendanceDate" onchange="onDateChange()" class="border border-slate-300 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
@@ -23,10 +22,10 @@
       <button type="button" onclick="openAdminModal()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 shadow-sm">
         ⚙️ 名單管理
       </button>
-<!-- 📊 歷史紀錄按鈕 -->
-<button type="button" onclick="openHistoryModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 shadow-sm transition">
-  📊 歷史紀錄
-</button>
+      <!-- 📊 歷史紀錄按鈕 -->
+      <button type="button" onclick="openHistoryModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 shadow-sm transition">
+        📊 歷史紀錄
+      </button>
     </div>
 
     <!-- 📌 隊伍獨立點名提交狀態指示列 -->
@@ -70,7 +69,7 @@
           <span>✓</span>
           <span>全選 (出席)</span>
         </button>
-        
+
         <button type="button" onclick="markAllInGroup('ABS')" class="bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 text-xs font-bold py-2 px-1 rounded-xl transition active:scale-95 flex items-center justify-center gap-1 shadow-sm">
           <span>✗</span>
           <span>全不選 (缺席)</span>
@@ -125,16 +124,71 @@
       <!-- 管理功能區 -->
       <div id="adminTools" class="hidden space-y-3">
         <div class="p-3 bg-slate-50 border rounded-xl space-y-2">
-          <p class="text-xs font-bold text-slate-700">1. 下載 CSV 範本</p>
+          <p class="text-xs font-bold text-slate-700">1. 下載 CSV 範本（學校格式）</p>
           <button type="button" onclick="downloadCSVTemplate()" class="w-full bg-slate-700 hover:bg-slate-800 text-white py-2 rounded-lg text-xs font-bold transition">📥 下載 CSV 範本</button>
         </div>
 
         <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
           <p class="text-xs font-bold text-blue-900">2. 上傳 CSV 名單</p>
+          <p class="text-[11px] text-slate-500">學校匯出檔另存為「CSV UTF-8」後直接上傳；系統按標題名稱讀取 Group、班別、班號、性別、社、姓名。</p>
           <input type="file" id="csvFile" accept=".csv" class="w-full text-xs text-slate-500">
           <button type="button" id="uploadBtn" onclick="uploadCSVFile()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg text-xs font-bold transition">🚀 開始上傳匯入</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 📊 歷史紀錄 Modal (彈出視窗) -->
+  <div id="historyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+
+      <!-- 1. Modal 標題 -->
+      <div class="px-6 py-4 bg-slate-800 text-white flex justify-between items-center">
+        <h3 class="text-lg font-bold flex items-center gap-2">📊 出席歷史與統計查詢</h3>
+        <button type="button" onclick="closeHistoryModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
+      </div>
+
+      <!-- 2. 篩選控制列 -->
+      <div class="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">組別/隊伍</label>
+          <select id="histGroup" onchange="fetchHistory()" class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white">
+            <option value="">全部組別</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">搜尋學生 / 班別</label>
+          <input type="text" id="histSearch" oninput="fetchHistory()" placeholder="輸入姓名或班別..." class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white">
+        </div>
+        <div class="flex items-end">
+          <button type="button" onclick="fetchHistory()" class="w-full bg-slate-700 text-white rounded-lg p-2 text-sm font-medium hover:bg-slate-800 transition">
+            🔄 重新整理
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. 統計數據卡片 (已移除遲到) -->
+      <div class="p-4 bg-white grid grid-cols-3 gap-3 text-center border-b border-slate-100">
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+          <div class="text-xs text-slate-500">總點名人次</div>
+          <div id="statTotal" class="text-lg font-bold text-slate-700">0</div>
+        </div>
+        <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
+          <div class="text-xs text-emerald-600">出席率</div>
+          <div id="statRate" class="text-lg font-bold text-emerald-700">0%</div>
+        </div>
+        <div class="bg-rose-50 p-2.5 rounded-xl border border-rose-100">
+          <div class="text-xs text-rose-600">缺席</div>
+          <div id="statAbsent" class="text-lg font-bold text-rose-700">0</div>
+        </div>
+      </div>
+
+      <!-- 4. 歷史明細列表 -->
+      <div class="p-4 overflow-y-auto flex-1">
+        <div id="histLoading" class="text-center py-8 text-slate-400 hidden">⏳ 載入歷史紀錄中...</div>
+        <div id="histList" class="space-y-2"></div>
+      </div>
+
     </div>
   </div>
 
@@ -152,7 +206,7 @@
       }
     }
 
-    // 1. 取得當前選取的日期 (修復：改用本地時間，避免 UTC 時區導致日期空白)
+    // 1. 取得當前選取的日期 (使用本地時間，避免 UTC 時區導致日期錯誤)
     function getSelectedDate() {
       const dateInput = document.getElementById('attendanceDate');
       if (dateInput && dateInput.value) {
@@ -319,7 +373,7 @@
       const keyword = (searchInput ? searchInput.value : '').trim().toLowerCase();
       const groupFilter = document.getElementById('groupFilter');
       const selectedGroup = groupFilter ? groupFilter.value : '';
-      
+
       if (!container) return;
       container.innerHTML = '';
 
@@ -378,8 +432,8 @@
 
         const card = document.createElement('div');
         card.className = `w-full p-3 rounded-xl border flex justify-between items-center transition-all cursor-pointer select-none active:scale-[0.98] ${
-          isPresent 
-            ? 'bg-emerald-500 border-emerald-600 text-white shadow-md' 
+          isPresent
+            ? 'bg-emerald-500 border-emerald-600 text-white shadow-md'
             : 'bg-rose-50 border-rose-200 text-rose-800'
         }`;
 
@@ -393,8 +447,8 @@
             <div class="text-base font-bold pt-0.5">${name}</div>
           </div>
           <div class="text-xs font-bold px-3 py-1.5 rounded-full ${
-            isPresent 
-              ? 'bg-emerald-800 text-white' 
+            isPresent
+              ? 'bg-emerald-800 text-white'
               : 'bg-rose-600 text-white'
           }">
             ${isPresent ? '✓ 出席' : '✗ 缺席'}
@@ -558,7 +612,7 @@
       }
     }
 
-    // 3. 開啟名單管理 Modal (防錯修復)
+    // 3. 開啟名單管理 Modal
     function openAdminModal() {
       const modal = document.getElementById('adminModal');
       const pwdArea = document.getElementById('pwdArea');
@@ -623,15 +677,47 @@
       }
     }
 
+    // 5. 📥 CSV 範本（學校格式，內容為虛構資料）
     function downloadCSVTemplate() {
-      const csvContent = "\uFEFFGroup,班別,班號,性別,社,姓名\n田徑隊,2A,7,M,信,陳大文\n籃球隊,3B,12,F,望,李小花\n羽毛球隊,1C,3,M,愛,張小明";
+      const csvContent = "\uFEFF" + [
+        "年度,Category,Group,登入名稱,班別,班號,性別,社,Level,姓名",
+        "2026-2027,校隊,單車隊,demo0001,2A,7,M,信,中二,陳大文",
+        "2026-2027,校隊,單車隊,demo0002,3B,12,F,望,中三,李小花",
+        "2026-2027,校隊,單車隊,demo0003,1C,3,M,愛,中一,張小明"
+      ].join("\n");
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = "點名名單範本.csv";
       a.click();
-      log("✅ 範本已下載");
+      URL.revokeObjectURL(url);
+      log("✅ 範本已下載（學校格式）");
+    }
+
+    // 6. CSV 解析（支援引號內逗號、BOM、Windows / Mac 換行）
+    function parseCSV(text) {
+      text = text.replace(/^\uFEFF/, '');
+      const rows = [];
+      let row = [], cell = '', inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+          if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+          else if (c === '"') inQuotes = false;
+          else cell += c;
+        } else if (c === '"') inQuotes = true;
+        else if (c === ',') { row.push(cell); cell = ''; }
+        else if (c === '\n' || c === '\r') {
+          if (c === '\r' && text[i + 1] === '\n') i++;
+          row.push(cell); cell = '';
+          if (row.some(x => x.trim() !== '')) rows.push(row);
+          row = [];
+        } else cell += c;
+      }
+      row.push(cell);
+      if (row.some(x => x.trim() !== '')) rows.push(row);
+      return rows;
     }
 
     async function uploadCSVFile() {
@@ -663,21 +749,37 @@
 
       reader.onload = async function(e) {
         try {
-          const text = e.target.result;
-          const lines = text.split(/\r\n|\n/);
+          const rows = parseCSV(e.target.result);
+          if (rows.length < 2) throw new Error("CSV 內容為空或只有標題列");
+
+          // 按標題名稱找欄位位置（兼容學校格式，欄位次序改變都唔怕）
+          const header = rows[0].map(h => h.trim().toLowerCase());
+          const col = {
+            group: header.indexOf('group'),
+            className: header.indexOf('班別'),
+            classNo: header.indexOf('班號'),
+            gender: header.indexOf('性別'),
+            house: header.indexOf('社'),
+            name: header.indexOf('姓名')
+          };
+          const missing = Object.entries(col).filter(([k, v]) => v === -1).map(([k]) => k);
+          if (missing.length) {
+            throw new Error("CSV 缺少欄位：" + missing.join(', ') + "\n請使用學校格式（Group、班別、班號、性別、社、姓名）");
+          }
+
           const members = [];
-
-          for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-
-            const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
-            if (parts.length >= 6) {
-              members.push({
-                group: parts[0], className: parts[1], classNo: parts[2],
-                gender: parts[3], house: parts[4], name: parts[5]
-              });
-            }
+          for (let i = 1; i < rows.length; i++) {
+            const r = rows[i];
+            const name = (r[col.name] || '').trim();
+            if (!name) continue; // 無姓名嘅行略過
+            members.push({
+              group: (r[col.group] || '').trim(),
+              className: (r[col.className] || '').trim(),
+              classNo: (r[col.classNo] || '').trim(),
+              gender: (r[col.gender] || '').trim(),
+              house: (r[col.house] || '').trim(),
+              name: name
+            });
           }
 
           log(`📊 CSV 解析成功：共 ${members.length} 筆資料，傳送中...`);
@@ -706,7 +808,7 @@
             log("🎉 匯入成功！更新名單庫...");
             closeAdminModal();
             await loadAttendance();
-            alert("✅ 上傳成功！學生名單庫已更新。");
+            alert("✅ 上傳成功！\n\n" + (result.message || "學生名單庫已更新。"));
           } else {
             log(`❌ 處理失敗：${result.message || '未知錯誤'}`);
             alert("❌ 上傳失敗：\n\n" + (result.message || "未知錯誤"));
@@ -726,202 +828,125 @@
 
       reader.readAsText(file, 'UTF-8');
     }
-</script>
-<!-- 📊 歷史紀錄 Modal (彈出視窗) -->
-<div id="historyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-  <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-    
-    <!-- 1. Modal 標題 -->
-    <div class="px-6 py-4 bg-slate-800 text-white flex justify-between items-center">
-      <h3 class="text-lg font-bold flex items-center gap-2">📊 出席歷史與統計查詢</h3>
-      <button type="button" onclick="closeHistoryModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
-    </div>
 
-    <!-- 2. 篩選控制列 -->
-    <div class="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3">
-      <div>
-        <label class="block text-xs font-semibold text-slate-500 mb-1">組別/隊伍</label>
-        <select id="histGroup" onchange="fetchHistory()" class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white">
-          <option value="">全部組別</option>
-        </select>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-500 mb-1">搜尋學生 / 班別</label>
-        <input type="text" id="histSearch" oninput="fetchHistory()" placeholder="輸入姓名或班別..." class="w-full border border-slate-300 rounded-lg p-2 text-sm bg-white">
-      </div>
-      <div class="flex items-end">
-        <button type="button" onclick="fetchHistory()" class="w-full bg-slate-700 text-white rounded-lg p-2 text-sm font-medium hover:bg-slate-800 transition">
-          🔄 重新整理
-        </button>
-      </div>
-    </div>
+    // ============================================================
+    // 📊 歷史紀錄與出席率 Modal 控制邏輯
+    // ============================================================
+    let histTimer = null;
 
-    <!-- 3. 統計數據卡片 -->
-    <div class="p-4 bg-white grid grid-cols-4 gap-3 text-center border-b border-slate-100">
-      <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-        <div class="text-xs text-slate-500">總點名人次</div>
-        <div id="statTotal" class="text-lg font-bold text-slate-700">0</div>
-      </div>
-      <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
-        <div class="text-xs text-emerald-600">出席率</div>
-        <div id="statRate" class="text-lg font-bold text-emerald-700">0%</div>
-      </div>
-      <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-100">
-        <div class="text-xs text-amber-600">遲到</div>
-        <div id="statLate" class="text-lg font-bold text-amber-700">0</div>
-      </div>
-      <div class="bg-rose-50 p-2.5 rounded-xl border border-rose-100">
-        <div class="text-xs text-rose-600">缺席</div>
-        <div id="statAbsent" class="text-lg font-bold text-rose-700">0</div>
-      </div>
-    </div>
+    async function openHistoryModal() {
+      document.getElementById('historyModal').classList.remove('hidden');
 
-    <!-- 4. 歷史明細列表 -->
-    <div class="p-4 overflow-y-auto flex-1">
-      <div id="histLoading" class="text-center py-8 text-slate-400 hidden">⏳ 載入歷史紀錄中...</div>
-      <div id="histList" class="space-y-2"></div>
-    </div>
-
-  </div>
-</div>
-<script>
-// ============================================================
-// 📊 歷史紀錄與出席率 Modal 控制邏輯 (智能隊伍選單修正版)
-// ============================================================
-let histTimer = null;
-
-// 打開 Modal
-async function openHistoryModal() {
-  document.getElementById('historyModal').classList.remove('hidden');
-  
-  // 💡 1. 嘗試搜尋主畫面常見的 Group 下拉選單 ID
-  const possibleIds = ['groupSelect', 'groupFilter', 'group', 'selectGroup', 'teamSelect', 'filterGroup'];
-  let groupSelect = null;
-  for (const id of possibleIds) {
-    const el = document.getElementById(id);
-    if (el && el.tagName === 'SELECT') {
-      groupSelect = el;
-      break;
-    }
-  }
-
-  const histGroup = document.getElementById('histGroup');
-  if (histGroup) {
-    histGroup.innerHTML = '<option value="">全部組別</option>';
-    if (groupSelect && groupSelect.options.length > 0) {
-      Array.from(groupSelect.options).forEach(opt => {
-        if (opt.value) {
-          histGroup.innerHTML += `<option value="${opt.value}">${opt.text}</option>`;
-        }
-      });
-    }
-  }
-  
-  await fetchHistory(true); // 帶入 isFirstLoad 標籤
-}
-
-// 關閉 Modal
-function closeHistoryModal() {
-  document.getElementById('historyModal').classList.add('hidden');
-}
-
-// 向 GAS 抓取歷史資料
-function fetchHistory(isFirstLoad = false) {
-  clearTimeout(histTimer);
-  histTimer = setTimeout(async () => {
-    const histGroup = document.getElementById('histGroup');
-    const group = histGroup ? histGroup.value : '';
-    const name = document.getElementById('histSearch').value.trim();
-    const loading = document.getElementById('histLoading');
-    const container = document.getElementById('histList');
-
-    if (!loading || !container) return;
-
-    loading.classList.remove('hidden');
-    container.innerHTML = '';
-
-    try {
-      const targetUrl = typeof GAS_URL !== 'undefined' ? GAS_URL : (typeof scriptUrl !== 'undefined' ? scriptUrl : '');
-      
-      const res = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'getAttendanceHistory',
-          group: group,
-          name: name
-        })
-      });
-
-      const textData = await res.text();
-      const data = JSON.parse(textData);
-
-if (data.success) {
-        const stats = data.stats || {};
-        
-        // 1. 更新 3 個統計卡片數字 (總點名人次、出席率、缺席)
-        const elTotal = document.getElementById('statTotal');
-        const elRate = document.getElementById('statRate');
-        const elAbsent = document.getElementById('statAbsent');
-
-        if (elTotal) elTotal.innerText = stats.total || 0;
-        if (elRate) elRate.innerText = (stats.rate !== undefined ? stats.rate : 0) + '%';
-        if (elAbsent) elAbsent.innerText = stats.absent || 0;
-
-        // 2. 自動提取隊伍名稱選單 (保險機制)
-        if (isFirstLoad && histGroup && histGroup.options.length <= 1 && data.logs) {
-          const uniqueGroups = [...new Set(data.logs.map(log => log.group).filter(Boolean))];
-          uniqueGroups.forEach(grpName => {
-            const opt = document.createElement('option');
-            opt.value = grpName;
-            opt.textContent = grpName;
-            histGroup.appendChild(opt);
+      // 沿用主畫面隊伍選單內容
+      const groupSelect = document.getElementById('groupFilter');
+      const histGroup = document.getElementById('histGroup');
+      if (histGroup) {
+        histGroup.innerHTML = '<option value="">全部組別</option>';
+        if (groupSelect && groupSelect.options.length > 0) {
+          Array.from(groupSelect.options).forEach(opt => {
+            if (opt.value) {
+              histGroup.innerHTML += `<option value="${opt.value}">${opt.value}</option>`;
+            }
           });
         }
+      }
 
-        // 3. 渲染列表內容 (已移除遲到，精準顯示 Present / 缺席)
-        if (!data.logs || data.logs.length === 0) {
-          container.innerHTML = '<div class="text-center text-slate-400 py-6">查無相關點名紀錄</div>';
-        } else {
-          container.innerHTML = data.logs.map(log => {
-            const sLower = (log.status || '').toLowerCase().trim();
-            
-            // 預設灰色未定標籤
-            let statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-medium">${log.status || '未知'}</span>`;
-            
-            // 只有精準符合 "present" 或 "出席" 先出綠色 Present 標籤
-            if (sLower === 'present' || sLower === '出席') {
-              statusBadge = '<span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800 font-medium">Present</span>';
-            } else if (sLower === 'absent' || sLower === '缺席' || sLower.includes('缺')) {
-              statusBadge = '<span class="px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-800 font-medium">缺席</span>';
+      await fetchHistory(true);
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('historyModal').classList.add('hidden');
+    }
+
+    function fetchHistory(isFirstLoad = false) {
+      clearTimeout(histTimer);
+      histTimer = setTimeout(async () => {
+        const histGroup = document.getElementById('histGroup');
+        const group = histGroup ? histGroup.value : '';
+        const name = document.getElementById('histSearch').value.trim();
+        const loading = document.getElementById('histLoading');
+        const container = document.getElementById('histList');
+
+        if (!loading || !container) return;
+
+        loading.classList.remove('hidden');
+        container.innerHTML = '';
+
+        try {
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'getAttendanceHistory',
+              group: group,
+              name: name
+            })
+          });
+
+          const data = JSON.parse(await res.text());
+
+          if (data.success) {
+            const stats = data.stats || {};
+
+            // 1. 更新統計卡片 (總點名人次、出席率、缺席)
+            document.getElementById('statTotal').innerText = stats.total || 0;
+            document.getElementById('statRate').innerText = (stats.rate !== undefined ? stats.rate : 0) + '%';
+            document.getElementById('statAbsent').innerText = stats.absent || 0;
+
+            // 2. 若隊伍選單為空，由紀錄自動補上
+            if (isFirstLoad === true && histGroup && histGroup.options.length <= 1 && data.logs) {
+              const uniqueGroups = [...new Set(data.logs.map(l => l.group).filter(Boolean))];
+              uniqueGroups.forEach(grpName => {
+                const opt = document.createElement('option');
+                opt.value = grpName;
+                opt.textContent = grpName;
+                histGroup.appendChild(opt);
+              });
             }
 
-            return `
-              <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm">
-                <div class="flex items-center gap-3">
-                  <div class="text-xs text-slate-400 font-mono w-24">${log.date}</div>
-                  <div>
-                    <span class="font-bold text-slate-700">${log.name}</span>
-                    <span class="text-xs text-slate-400 ml-1">(${log.className} ${log.classNo})</span>
-                    <span class="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded ml-2">${log.group}</span>
+            // 3. 渲染列表 (出席 / 缺席)
+            if (!data.logs || data.logs.length === 0) {
+              container.innerHTML = '<div class="text-center text-slate-400 py-6">查無相關點名紀錄</div>';
+            } else {
+              container.innerHTML = data.logs.map(item => {
+                const sLower = (item.status || '').toLowerCase().trim();
+
+                let statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-medium">${item.status || '未知'}</span>`;
+
+                if (sLower === 'present' || sLower === '出席') {
+                  statusBadge = '<span class="px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800 font-medium">Present</span>';
+                } else if (sLower === 'abs' || sLower === 'absent' || sLower === '缺席' || sLower.includes('缺')) {
+                  statusBadge = '<span class="px-2 py-0.5 rounded text-xs bg-rose-100 text-rose-800 font-medium">缺席</span>';
+                }
+
+                return `
+                  <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-sm">
+                    <div class="flex items-center gap-3">
+                      <div class="text-xs text-slate-400 font-mono w-24">${item.date}</div>
+                      <div>
+                        <span class="font-bold text-slate-700">${item.name}</span>
+                        <span class="text-xs text-slate-400 ml-1">(${item.className} ${item.classNo})</span>
+                        <span class="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded ml-2">${item.group}</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-slate-400">點名者: ${item.updatedBy}</span>
+                      ${statusBadge}
+                    </div>
                   </div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-slate-400">點名者: ${log.updatedBy}</span>
-                  ${statusBadge}
-                </div>
-              </div>
-            `;
-          }).join('');
+                `;
+              }).join('');
+            }
+          } else {
+            container.innerHTML = `<div class="text-center text-rose-500 py-4">載入失敗：${data.message || '未知錯誤'}</div>`;
+          }
+        } catch (err) {
+          container.innerHTML = `<div class="text-center text-rose-500 py-4">載入歷史紀錄失敗：${err.message}</div>`;
+        } finally {
+          loading.classList.add('hidden');
         }
-      }
-    } catch (err) {
-      container.innerHTML = `<div class="text-center text-rose-500 py-4">載入歷史紀錄失敗：${err.message}</div>`;
-    } finally {
-      loading.classList.add('hidden');
+      }, 300);
     }
-  }, 300);
-}
 </script>
 </body>
 </html>
